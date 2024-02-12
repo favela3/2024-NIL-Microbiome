@@ -1,5 +1,5 @@
 # 2024 NIL Microbiome
-Code Repository for NIL Manuscript. Documentation includes sequence processing and data analysis. 
+Code Repository for NIL Manuscript. Documentation includes sequence processing examples and data analysis. 
 
 Supplemental sequence processing and R statistical analysis for publication which compares the microbiome of teosinte-B73 Near Isogenic Lines. 
 
@@ -14,6 +14,8 @@ Functional Data is present here in CSV files. If the link is not working, the ma
 # Directory Description
 Phase 1 describes bioinformatics for constructing OTU/ASV.
 Phase 2 describes statistical analysis for Amplicon Data and N-cycling functional Data. 
-Phase 3 describes figure construction. 
+
+#Questions about anything should be directed to alonsof@arizona.edu 
+
 
 
