@@ -1,10 +1,10 @@
 #Date: 9/20/18
 #Name: Alonso Favela ====
 
-#Purpose: To give a rough analysis of the NIL nitfication Dataset to see if we can identfiy
+#Purpose: To give a rough analysis of the NIL nitrification Dataset to see if we can identify
 # NILs that would be useful for further analysis and study 
 
-#Ive decided to also add the DEA data to this analysis 
+# I've decided to also add the DEA data to this analysis 
 
 #This directory is where I will store all scripts related to the NIL project
 setwd("~/Documents/Thesis /Chapter 4/Science /Rstats/Old R-Analysis /R-Scripts/NIL CSV/Functional Data")
@@ -121,15 +121,12 @@ TukeyHSD(n.dataframe)
 n.dataframe <-aov(NitrT2$Log ~(NitrT2$Pedigree))
 summary(n.dataframe)
 TukeyHSD(n.dataframe)
-###Code For makeing the Specifc figure for Angela======
+###Code For making the Specific figure======
 
 ggplot(Selectnitf, aes(x = fct_reorder(Pedigree, Nitrifcation.ngN.gh, .fun = median, .desc=TRUE), y=Nitrifcation.ngN.gh, fill=Pedigree))+
   geom_boxplot()+labs(y="ngN/gh", title="Potential Nitrification Rate", x="Genotypes")+
   theme_classic()+scale_fill_manual(values=c("blue", "limegreen", "lightblue","lightblue", "lightblue", "lightblue", "lightblue"))
 
-
-#Seems like there are a couple of outliers in the data
-#this data set apears to have to much intrinc varability 
 ##Fig3. Nitrfication Reduced Figures=====
 Master = read.csv(file ="MasterFunction.DataSheet.Corrected.3.14.21.csv", head = T)
 
@@ -240,8 +237,6 @@ n.dataframe <-aov((Selectnitf$Nitrification.Rate..ugN.ghr.) ~(Selectnitf$Pedigre
 
 summary(n.dataframe)
 
-# 7.090   6.198 0.0552 .
-#4x4
 ##Manuscript Figure=====
 ggplot(Selectnitf, aes(x = fct_reorder(Pedigree, Nitrification.Rate..ugN.ghr., .fun = median, .desc=TRUE), y=Nitrification.Rate..ugN.ghr., fill=Pedigree))+
   geom_boxplot()+labs(y="Potential nitrification rate (ngN/gh)", x="Genotypes")+
@@ -455,7 +450,6 @@ Selectnitf=subset(SelectT2, Pedigree== "B73"
                   | Pedigree== "B73xPI384071" )
 n.dataframe <-aov(log1p(Selectnitf$AceTotal.N2O...N2) ~(Selectnitf$Pedigree))
 summary(n.dataframe)
-
 # 0.03753   0.162  0.701
 
 
@@ -470,8 +464,6 @@ TukeyHSD(n.dataframe)
 boxplot(CoreNitf$Nitrifcation.ngN.gh ~(CoreNitf$Pedigree))
 plot(density(CoreNitf$Nitrifcation.ngN.gh))
 lines(density(CoreNitf$Pedigree))
-
-#Tukeys range test doesn't seem to useful for this 
 
 #Plot.
 ggplot(CoreNitf, aes(x = Nitrifcation.ngN.gh, fill = Pedigree)) + geom_density(alpha = 0.5)
@@ -568,7 +560,7 @@ ggplot(Selectdea, aes(x = fct_reorder(Genotype, HelTotal.N2O.ng.g.hr, .fun = med
  ggplot(NitrCoreT1, aes(x = Nitrifcation.ngN.gh, fill = Pedigree)) + geom_density(alpha = 0.5)
  ggplot(NitrCoreT2, aes(x = Nitrifcation.ngN.gh, fill = Pedigree)) + geom_density(alpha = 0.5)
  
- ###Caluating mean and start devation sfor the new set of maps outliers removed. =====
+ ###Caluating mean and start Dev =====
  
 
 NILNitf = read.csv(file ="NIL18.All.Nitrfication.DATA.OUTlIE.csv", head = T)
@@ -593,7 +585,7 @@ write.csv(Head,"Nitrfication.GenotypeMean.SD.csv", row.names = FALSE)
 Time2Genotyp=subset(Head, Group.2== "T2")
 write.csv(Time2Genotyp,"Nitrfication.Genotype.Time2.Mean.SD.csv", row.names = FALSE)
 
-###Plotting the full scope of function
+###Plotting the full scope of the function
 
 Master=subset(Master, Sample.ID!="NIL18.T2.152")
 Master=subset(Master, Sample.ID!="NIL18.T2.009")
@@ -1387,7 +1379,7 @@ shapiro.test(N20emission$Flux.min)
 qqnorm(N20emission$N2O.Concentation)
 qqnorm(N20emission$Flux.min)
 
-#Lets look at the data very coursly
+# Let's look at the data very carefully
 #Boxplot: N20 Per treatment Type====
 boxplot(N20emission$N2O.Concentation~ N20emission$Type)
 boxplot(N20emission$Slope~ N20emission$Type)
@@ -1404,8 +1396,7 @@ boxplot(N20emission$Headspace.Concentration..ppm.~ N20emission$Time)
 boxplot(N20emission$Headspace.Concentration..ppm.~ N20emission$X)
 
 #The Headspace.Concentration..ppm. is the T0 N20 concentration in the sample| I.E. The ambient N20
-#This is consistent with the lit. Now what is more suppreising is the rate.
-#The data is not super normal, but there is a clear trend in time
+#This is consistent with the lit. Now what is more surprising is the rate.
 model<-lm((N20emission$Headspace.Concentration..ppm.)~ N20emission$X)
 summary(model)
 plot(model)
@@ -1418,8 +1409,7 @@ summary(model)
 plot((N20emission$Flux.min)~ N20emission$X)
 abline(model)
 
-#It may be best to use a fitted model to these data. There is a clear relationship,
-#but I think the stand curves should be corrected for. There's some week 2 wonky-ness and some patterns driven by the standard curve. 
+#It may be best to use a fitted model for these data. There is a clear relationship,
 library(ggplot2)
 library(tidyverse)
 
@@ -1435,10 +1425,10 @@ ggplot(N20emission, aes(X, Flux.min)) +
   geom_smooth(method="loess", se = TRUE)+theme_bw()+
   ylab("log of N20 per min")+ggtitle("N20 flux in Time:Gen 11/19/19 ")+xlab("Time")
 
-#Here I want to look at the factor factor differences 
+#Here I want to look at the factor-factor differences 
 library(tidyverse)
 
-#lets look at how the centeral space point shapes the n20 emisison.===
+#lets look at how the central space point shapes the n20 emission.===
 Far<-N20emission %>%
   subset(Space=="F")%>%
   ggplot(aes(X, Flux.min)) +
@@ -1466,7 +1456,7 @@ library(gridExtra)
 library(grid)
 grid.arrange(Center, Middle, Far,nrow = 1)
 #Saved at 12x4 inches
-# It may be useful to calculate the varaince for each of the of the different treatments 
+# It may be useful to calculate the variance for each the treatments 
 
 #
 ggplot(N20emission, aes(X, Headspace.Concentration..ppm.)) +
@@ -1479,7 +1469,6 @@ ggplot(N20emission, aes(X, Headspace.Concentration..ppm.)) +
 #Tidyverse code I could deff plot these values in a different way====
 library(tidyverse)
 
-#this is soo cool. If I pipe out the last bit of the code we can easily manipulate the plot 
 Week1<-
   N20emission %>%
   subset(Time== "Week1")%>%
@@ -1494,14 +1483,6 @@ library(gridExtra)
 #multiplot(Week1, Week2,Week3,Week5,Week5,Week6,Week7,Week8,Week9, nrow=3)
 #This figure has scaling issues
 grid.arrange(Week1, Week2,Week3,Week5,Week5,Week6,Week7,Week8,Week9,nrow = 3)
-
-
-# I may want to creat a set of figures for all 9
-#This jitter position is closert to my needs. I think setting the jitter may be a little bit more useful
-
-#The different time points, Can probably be prepresened as asome sort of jitter
-#This is soooo cool! This allows me to quickly make files and edit them on the fly. 
-#I may want to come back to this to see how the values are actually changing in time.
 
 #Note: most of the N20 emissions are occuring early in the growing season and reduce dramatically.
 
@@ -1720,7 +1701,7 @@ setwd("~/Documents/Thesis /Chapter 4/Science /Rstats/NIL follow- Exp 2019/Data /
   ggplot(NILNitf, aes(x =Average.rate.ug.NO2.N.g.hr)) + geom_density(alpha = 0.5)
   ggplot(NILNitf, aes(x =diff.rate.ng.NO2.N.g.hr)) + geom_density(alpha = 0.5)
   
-#Genotypic view || This first methods was the one used by Mark and Sandy
+#Genotypic view |
   ggplot(NILNitf, aes(x = fct_reorder(Genotypes, Average.rate.ug.NO2.N.g.hr, .fun = median, .desc=TRUE), y=Average.rate.ug.NO2.N.g.hr, fill=Genotypes))+
     geom_boxplot()+labs(y="ngN/gh", title="Potential Nitrification Rate", x="Genotypes")+theme_bw() +theme(axis.text.x = element_text(angle = 90, hjust = 1))+
     geom_hline(yintercept = 229, linetype="dashed", color = "red")
@@ -1729,7 +1710,7 @@ setwd("~/Documents/Thesis /Chapter 4/Science /Rstats/NIL follow- Exp 2019/Data /
     geom_boxplot()+labs(y="ngN/gh", title="Potential Nitrification Rate", x="Genotypes")+theme_bw() +theme(axis.text.x = element_text(angle = 90, hjust = 1))+
     geom_hline(yintercept = 229/100, linetype="dashed", color = "red")
 
-  #This is the orginal method
+  #This is the original method
   ggplot(NILNitf, aes(x = fct_reorder(Genotypes, diff.rate.ng.NO2.N.g.hr, .fun = median, .desc=TRUE), y=diff.rate.ng.NO2.N.g.hr, fill=Genotypes))+
     geom_boxplot()+labs(y="ngN/gh", title="Potential Nitrification Rate", x="Genotypes")+theme_bw() +theme(axis.text.x = element_text(angle = 90, hjust = 1))+
     geom_hline(yintercept = 229, linetype="dashed", color = "red")
@@ -1757,7 +1738,7 @@ setwd("~/Documents/Thesis /Chapter 4/Science /Rstats/NIL follow- Exp 2019/Data /
   ggplot(NILNitf, aes(x = fct_reorder(Rep, Average.rate.ug.NO2.N.g.hr, .fun = mean, .desc=TRUE), y=Average.rate.ug.NO2.N.g.hr, fill=Rep))+
     geom_boxplot()+labs(y="ngN/gh", title="Potential Nitrification Rate", x="Genotypes")+ theme(axis.text.x = element_text(angle = 90, hjust = 1))+geom_point()
   
-  #Rep seems to be a signficiant factor in the model 
+  #Rep seems to be a significant factor in the model 
   model<-aov((Average.rate.ug.NO2.N.g.hr)~Rep, data = NILNitf)
   TukeyHSD(model)
   summary(model)
@@ -1814,8 +1795,6 @@ setwd("~/Documents/Thesis /Chapter 4/Science /Rstats/NIL follow- Exp 2019/Data /
    model<-aov((Average.rate.ug.NO2.N.g.hr)~Genotypes+Error(Rep), data = Chromosome5)
    summary(model)
    plot(summary(model))
-   
-   
    
    
    #Chromosome 9 Analysis 
@@ -1932,19 +1911,19 @@ setwd("~/Documents/Thesis /Chapter 4/Science /Rstats/NIL follow- Exp 2019/Data /
    
    
    
-   #Nitrfication/biomass is stastically significant
+   #Nitrfication/biomass is statistically significant
    model<-aov((Ratio.BM.2)~Genotypes+Error(Rep), data = NILNitf)
    TukeyHSD(model)
    summary(model)
    
-   #Plant biomass is signficantly different across treatment 
+   #Plant biomass is significantly different across treatment 
    model<-aov((Plant.BM)~Genotypes+Error(Rep), data = NILNitf)
    summary(model)
    
    
-   #Very close to signicance|| If one removes the highly varaibel samples we will see signficanvce in the samples
+   #Very close to significance |
    summary(model)
-   #Slight Negative corrlation with Biomass|| i.e. nitrfication increases, biomass decreases
+   #Slight Negative correlation with Biomass|| i.e. nitrification increases, biomass decreases
    cor(NILNitf$Average.rate.ug.NO2.N.g.hr,NILNitf$Plant.BM)  
    #Very, very, very slight negative correlation
    ggplot(NILNitf,aes(x=Average.rate.ug.NO2.N.g.hr, y=Plant.BM))+geom_point()+stat_smooth(method=lm)
