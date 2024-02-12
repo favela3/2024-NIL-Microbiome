@@ -1,0 +1,56 @@
+#!/bin/bash
+
+#1 Removes duplicated sequences in order to build an OTU table. Simultaneously sorts the sequences by number of occurrences and removes sequences that were found only once.
+echo -e "\n\nRemoving duplicated sequences in order to build an OTU table. Simultaneously sorting the sequences by number of occurrences and removing sequences that were found only once.\n\n"
+
+./usearch -derep_fulllength 00_All-Samples-Filtered.fasta -fastaout 01_sorted_filtered_sequences.fasta -sizeout -minuniquesize 2 -log 01_derep_sort_filter_log.txt
+
+#note that for this class version, we are using a relative file path to call usearch: ./usearch  In our lab computers, we have usearch defined in our $PATH, and it can be called with just “usearch”
+
+#2 Clusters unique sequences by 97% similarity to identify candidate OTUs and picks a representative sequence from each cluster
+echo -e "\n\nClustering unique sequences by 97% similarity to identify candidate OTUs.\n\n"
+
+./usearch -cluster_otus 01_sorted_filtered_sequences.fasta -otus 02_representative_otus.fasta -log 02_otu_clustering_log.txt
+
+
+#3 Removes chimeric sequences using the Gold database
+echo -e "\n\nRemoving chimeric sequences using the Gold database.\n\n"
+
+./usearch -uchime_ref 02_representative_otus.fasta -db ../refDB/gold/gold.fa -nonchimeras 03_nonchimeric_representative_otus.fasta -strand plus -log 03_otu_chimera_filtering_log.txt
+
+
+# note that for this class version, we include the reference DBs in this folder set, and are using a relative file path to access them: ../refDB/gold/gold.fa
+# In our labs, these are stored in /bioinformatics/refDB to avoid making a new copy with each analysis!
+
+
+#4 Change the sequence identifiers so that the .fasta file contains sequences identified with OTU_1, OTU_2 etc. 
+echo -e "\n\nAppending 'OTU_' to each sequence so that the fasta file contains sequences identified as OTU_1, OTU_2 etc.\n\n"
+
+python ../Software/drive5_py/python_scripts/fasta_number.py 03_nonchimeric_representative_otus.fasta OTU_ > 04_labeled_nonchimeric_representative_otus.fasta
+
+#note that for this class version, we are using a relative file path to call this python script. In our lab computers, we have fasta_number.py defined in our $PATH, and it can be called with just “fasta_number.py”
+
+
+#5 Create a QIIME-friendly rep OTUS fasta file with sequences labeled without 'OTU_'. 
+echo -e "\n\nCreating a QIIME-friendly fasta file with representative OTUs.\n\n"
+
+python ../Software/drive5_py/python_scripts/fasta_number.py 03_nonchimeric_representative_otus.fasta > 05_rep_seq.fasta
+#note that for this class version, we are using a relative file path to call this python script. In our lab computers, we have fasta_number.py defined in our $PATH, and it can be called with just “fasta_number.py”
+
+
+#6 Maps each of the sequence in the filtered sequences fasta file to the identified OTUs
+echo -e "\n\nMapping each of the sequence in the filtered sequences fasta file to the identified OTUs\n\n"
+
+./usearch -usearch_global 00_All-Samples-Filtered.fasta -db 04_labeled_nonchimeric_representative_otus.fasta -strand plus -id 0.97 -uc 05_readmap.uc -log 06_sequence_to_OTU_mapping_log.txt
+
+
+#7 Converts the mapped .uc file with OTUs to a QIIME compatible format
+echo -e "\n\nConverting the mapped .uc file with OTUs to a QIIME compatible format\n\n"
+
+python ../Software/drive5_py/python_scripts/readmap2qiime.py 05_readmap.uc > 06_qiime_otu_clusters.txt
+#note that for this class version, we are using a relative file path to call this python script. In our lab computers, we have readmap2qiime.py defined in our $PATH, and it can be called with just “readmap2qiime.py”
+
+#8 Copy fasta file of representative sequences and the OTU cluster table to the QIIME folder
+echo -e "\n\nMoving rep_seq.fasta and qiime_otu_clusters files to the QIIME folder.\n\n"
+cp '06_qiime_otu_clusters.txt' '../03_QIIME/qiime_otu_clusters.txt'
+cp '05_rep_seq.fasta' '../03_QIIME/rep_seq.fasta'

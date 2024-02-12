@@ -1,0 +1,99 @@
+#This is not a script. It is a list of common commands in QIIME that you can copy and paste into a command line to execute.
+# NOTE: Updated ADK 10-29-2018
+
+#call macqiime
+macqiime
+
+#_____________________________________________________________
+#steps to align sequences and generate a phylogeny to support phylogenetic distance metrics
+align_seqs.py -i rep_seq.fasta
+
+filter_alignment.py -i pynast_aligned/rep_seq_aligned.fasta -m /macqiime/greengenes/lanemask_in_1s_and_0s -o filtered_alignment/
+
+make_phylogeny.py -i filtered_alignment/rep_seq_aligned_pfiltered.fasta
+
+#_____________________________________________________________
+#Now let's generate our OTU table. First we'll assign taxonomy to each representative sequence.
+assign_taxonomy.py -i rep_seq.fasta
+
+#make OTU table, update name of input file to be the output file from assign_taxonomy.py
+make_otu_table.py -i qiime_otu_clusters.txt -t uclust_assigned_taxonomy/rep_seq_tax_assignments.txt -e pynast_aligned/rep_seq_failures.fasta -o otu_table.biom
+
+#_____________________________________________________________
+#Now we'll examine and clean up the OTU table
+biom summarize-table -i otu_table.biom -o otu_table_stats.txt
+
+#create OTU table for analyses outside of QIIME, or to further edit the OTU table before more QIIME analyses
+#change input file names as appropriate
+#Convert the .biom file to a .txt file. 
+biom convert -i otu_table.biom -o otu_table.txt --to-tsv --header-key taxonomy
+
+# older format (depends on OS, this is prob not the version you need):  
+# biom convert -i otu_table.biom -o otu_table.txt -b --header-key taxonomy
+
+
+#Remove any unwanted OTUs (e.g. chloroplast or mitochondrial sequences, Unassigned sequences)
+#convert back to .biome before rarifying
+biom convert -i otu_table_edit.txt -o new_otu_table_full_taxa.biom --table-type="OTU table" --to-hdf5 --process-obs-metadata taxonomy 
+
+# older format (depends on OS, this is prob not the version you need): 
+# biom convert -i otu_table.txt -o new_otu_table_full_taxa.biom --table-type="OTU table" --process-obs-metadata taxonomy
+
+
+biom summarize-table -i new_otu_table_full_taxa.biom -o otu_table_full_taxa_stats.txt
+
+
+#rarify to desired sequence depth and update command, change read depth -d as appropriate
+single_rarefaction.py -i new_otu_table_full_taxa.biom -o otu_table_rarefied_30152.biom -d 30152
+
+biom summarize-table -i otu_table_rarefied_30152.biom -o otu_table_rarefied_stats.txt
+
+
+#convert rarified table to .txt for use outside of QIIME
+biom convert -i otu_table_rarefied_30152.biom -o otu_table_rarefied_30152.txt --to-tsv --header-key taxonomy
+
+#Sample 97 was lost. No Idea how or why. Investigation will still need to be done. 
+#_____________________________________________________________
+#Now it's time for data analysis
+#Typical QIIME commands, refer to detailed workflow or QIIME.org for more info on any commands
+#Make sure that the mapping file is in the working directory
+#make sure mapping file is formatted for Unix vs classic MacOS, also make sure mapping file samples = remaining samples in OTU table
+#summarize taxa through bar plots, change input, output, mapping file, and classifications as needed
+#mind the capitalization in the mapping file
+
+summarize_taxa_through_plots.py -i otu_table_rarefied_30152.biom -o taxa_summary_by_Pedigree -m NIL2018MappingDNA.txt -c Pedigree 
+summarize_taxa_through_plots.py -i otu_table_rarefied_30152.biom -o taxa_summary_by_Time -m NIL2018MappingDNA.txt -c Time
+
+#This can be used to examine the data at different taxanomic classes
+summarize_taxa_through_plots.py -i otu_table_rarefied_30152.biom -o taxa_summary_by_Sample -m NIL2018MappingDNA.txt -c #SampleID
+
+
+#alpha diversity plots
+#change min/max read depth as needed
+
+echo "alpha_diversity:metrics shannon,chao1,observed_species,PD_whole_tree" > alpha_params.txt
+alpha_rarefaction.py -i otu_table_rarefied_30152.biom -m NIL2018MappingDNA.txt -o alpha_div/ -p alpha_params.txt -t filtered_alignment/rep_seq_aligned_pfiltered.tre -e 30152
+
+
+
+#beta diversity plots, this won't work with out an alignment and trees, so not very useful for functional genes
+
+echo "beta_diversity:metrics  bray_curtis,unweighted_unifrac,weighted_unifrac" > beta_params.txt
+beta_diversity_through_plots.py -i otu_table_rarefied_30152.biom  -p beta_params.txt -m NIL2018MappingDNA.txt -o beta_div/ -t filtered_alignment/rep_seq_aligned_pfiltered.tre
+
+
+
+# All the common diversity analyses:
+Generic version: $ core_diversity_analyses.py -i otu_table.biom -m MappingFile.txt -t filtered_alignment/rep_seq_aligned_pfiltered.tre  -o core_diversity -e SequenceDepth -c Treatment
+core_diversity_analyses.py -i otu_table_rarefied_Depth.biom -m MappingFile.txt -t filtered_alignment/rep_seq_aligned_pfiltered.tre  -o core_diversity -e SequenceDepth -c Category
+
+
+#other QIIME commands to know about:
+#fill in input file names and read depths as needed
+
+#remove singletons 
+#Filter_otus_from_otu_table.py -i otu_table.biom -o otu_table_desin.biom -n 2
+
+#Filter low read samples from OTU table, fill in desired read depth after -n:
+filter_samples_from_otu_table.py -i otu_table.biom  -o otu_table_filtered.biom -n 10000
+
