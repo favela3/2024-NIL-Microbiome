@@ -12,8 +12,8 @@ Functional Data is present here in CSV files. If the link is not working, the ma
 2. [Martin Bohn](https://cropsciences.illinois.edu/people/profile/mbohn)
 
 # Directory Description
-Phase 1 describes bioinformatics for constructing OTU/ASV.
-Phase 2 describes statistical analysis for Amplicon Data and N-cycling functional Data. 
+Amplicon bioinformatics contains code and methods used for constructing OTUs/ASV. 
+Statistical Analysis contains the code for carrying out statistical comparisons and generating figures used in the manuscript. 
 
 #Questions about anything should be directed to alonsof@arizona.edu 
 
