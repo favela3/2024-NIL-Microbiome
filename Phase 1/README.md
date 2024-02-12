@@ -1,1 +1,0 @@
-Folder Contains example pipelines for the amplicon construction used in this study. We used two methods. DADA2 was used for the high-depth amplicons (16S, ITS), and an usearch Qiime pipeline was used for the functional gene amplicons. 
