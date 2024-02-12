@@ -1,0 +1,764 @@
+---
+title: "NIL project"
+author: "Alonso Favela"
+date: "5/9/2019"
+output: html_document
+---
+setwd("~/Documents/Projects/Projects/Maize Microbiome/NIL MM2018/WGCNA/WGCNA")
+
+setwd("~/Documents/Projects/Research/Maize Microbiome/NIL MM2018/WGCNA/WGCNA")
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+ setwd("~/Documents/Projects/Research/Maize Microbiome/NIL MM2018/WGCNA/WGCNA")
+
+r <- getOption("repos")
+r["CRAN"] <- "https://mirror.las.iastate.edu/CRAN/"
+options(repos = r)
+```
+
+This is an R Markdown file with code to run WGCNA with OTU/microbiome data.
+
+## *Load packages*
+
+```{r}
+
+library(rmarkdown)
+
+library(BiocManager)
+
+# # # install pre-requisites
+#  install.packages(c("matrixStats", "Hmisc", "splines", "foreach",
+#  "doParallel", "fastcluster", "dynamicTreeCut", "survival"))
+#  source("http://bioconductor.org/biocLite.R")
+#  biocLite(c("GO.db", "preprocessCore", "impute"))
+#  install.packages("flashClust")
+#  library(flashClust)
+# # # 
+# # # # install WGCNA
+#  install.packages("BiocManager")
+# BiocManager::install("WGCNA") 
+
+#load packages
+suppressMessages(library(WGCNA))
+allowWGCNAThreads()
+suppressMessages(library(cluster))
+options(stringsAsFactors = FALSE)
+
+library(dplyr)
+library(vegan)
+```
+
+
+## *Load data*
+
+I am loading soil microbial nifH OTU table for Taiwan Miscanthus dataset, environmental ("clinical") data, and taxonomy information.
+
+```{r}
+#This code runs the Genotype Name formatting 
+OTU <- read.csv("otu_table_rarefied_30152.csv", header = TRUE, row = "Samples")
+metadata <- read.csv("MasterFunction.DataSheet.csv", header = TRUE, row = "Sample")
+taxonomy <- read.csv("taxa.csv", header = TRUE, row = "OTU")
+
+
+##Subsetting to look at the T2 Data 
+#Data points from 1:177 belong to T1
+#Data from 178:237 belong to T2
+OTU<-OTU[177:356,]
+metadata<-metadata[178:357,]
+
+#I need to remove outliers
+```
+
+```{r}
+#Here we take into account all of the genetic infromation
+OTU <- read.csv("OTU.csv", header = TRUE, row = "Samples")
+metadata <- read.csv("metadata.csv", header = TRUE, row = "Sample")
+taxonomy <- read.csv("taxa.csv", header = TRUE, row = "OTU")
+
+rownames(OTU)
+rownames(metadata)
+samples <- rownames(OTU)
+samples
+env <- subset(metadata, samples %in% Samples)
+rownames(env)
+```
+
+```{r}
+# subset metadata to include only relevant information for nifH rhizosphere samples
+
+rownames(OTU)
+rownames(metadata)
+samples <- rownames(OTU)
+samples
+env <- subset(metadata, samples %in% SampleID)
+rownames(env)
+
+#need to add offset of 1 to every values to eliminate 0 values prior to log tranformation
+OTU <- OTU + 1
+#conform no 0 values
+sum(which(OTU == 0))
+
+#function to filter out OTUs with abundance < 0.01%
+# This will liekly remove a ton of data: It kinda seems like the really high high seek picks up alot of weird stuff in it. 
+#I think this is based on the read count? so if the read cound is 30152, then at a 1% there should be at least 300 reads for the OTU. I think I may make it 001% I really want to remove singletons not micobes that are. 
+# *To do this I changed the percentage to 1%*
+#function to filter out OTUs with abundance < 0.01%
+low.count.removal = function(
+data,
+percent=0.01
+){
+keep.otu = which(colSums(data)*100/(sum(colSums(data))) > percent)
+data.filter = data[,keep.otu]
+return(list(data.filter = data.filter, keep.otu = keep.otu))
+}
+result.filter = low.count.removal(OTU, percent=0.01)
+data.filter = result.filter$data.filter
+#how many OTUs are retained?
+length(result.filter$keep.otu)
+# [1] 1432
+
+# TSS normalization (relative abundance?)
+# TSS.divide <- function(x){
+# x/sum(x)
+# }
+# 
+# OTU_TSS <- t(apply(data.filter, 1, TSS.divide))
+# 
+# OTU_norm <- log2(OTU_TSS)
+# rownames(OTU_norm)
+
+# Too big to view (R slows down)
+###CLS Transfromation to deal with compositional data
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+CLS.divide <- function(x){
+x/gm_mean(x)
+}
+
+##Test
+# OTU_CLS <- t(apply(OTU, 1, CLS.divide))
+
+OTU_CLS <- t(apply(data.filter, 1, CLS.divide))
+OTU_norm <- log2(OTU_CLS)
+
+
+# subset metadata to include only those in nifH_norm
+samples <- rownames(OTU_norm)
+samples
+env <- subset(metadata, samples %in% SampleID)
+env1 <- env[,-1]
+
+
+#Need to make stuff into dummy variables
+library(fastDummies)
+Genotype<-dummy_cols(env$Genotype)
+Genotype <- Genotype[,-1]
+
+Time<-dummy_cols(env$Time)
+Time<-Time[,-1]
+ 
+env1<-env[, -c(1:9)]
+
+env1<-cbind(env1,Genotype,Time)
+
+#this code is not needed for the T2
+# env1<-env1[-97,]
+# rownames(env1)
+#env1[,3]<-log(env1[,3])
+
+# check that rownames in nifH_norm match env_norm
+rownames(env1)
+rownames(OTU_norm)
+
+rownames(OTU_norm) == rownames(env1)
+
+##Something odd is occuring around the postion that is causing an issue
+
+#META
+# [93] "NIL.T1.093"  "NIL.T1.094"  "NIL.T1.095"  "NIL.T1.096" 
+#  [97] "NIL.T1.097"  "NIL.T1.098"  "NIL.T1.099"  "NIL.T1.100" 
+
+#OTUS
+# [93] "NIL.T1.093"  "NIL.T1.094"  "NIL.T1.095"  "NIL.T1.096" 
+#  [97] "NIL.T1.098"  "NIL.T1.099"  "NIL.T1.100"  "NIL.T1.101"
+```
+
+## *Identify and remove outliers*
+
+```{r}
+
+#sample network based on euclidian distance
+A <- adjacency(t(OTU_norm), type = "distance")
+
+#whole network connectivity
+k <- as.numeric(apply(A, 2, sum))
+
+#standardized connectivity
+Z.k = scale(k)
+
+#designate samples as outliers if Z.k value is below threshold
+thresholdZ.k <- -5
+outlierColor <- ifelse(Z.k < thresholdZ.k, "red", "black")
+
+#generate cluster tree
+sampleTree <- hclust(as.dist(1-A), method = "average")
+
+#all data must be numeric
+# env$elevation <- as.numeric(env$elevation)
+
+# # select only numeric data
+#  env1 <- env %>%
+#   select(X._moisture, C.N, elevation, latitude, longitude, M3Ca, M3Fe, M3K, M3P, moisture, NH4, NO3, OM, pH, total_C, total_N)
+# env1
+#env1<-env[,-1]
+
+env2<-env1
+envColors = data.frame(numbers2colors(env2, signed = FALSE))
+dimnames(envColors)[[2]] = paste(names(env2), "C", sep = "")
+datColors <- data.frame(outlierC = outlierColor, envColors)
+#plot the samples dendrogram and the colors underneath
+plotDendroAndColors(sampleTree, groupLabels = names(datColors),
+colors = datColors)
+
+```
+
+## *Soft thresholding*
+ 
+```{r}
+# Choose a set of soft thresholding powers
+powers = c(1:20)
+
+# choose power based on SFT criterion (for unsigned network)
+sft <- pickSoftThreshold(OTU_norm, powerVector = powers)
+
+sft$powerEstimate
+
+# Plot the results: NOTE I was unable to get get the exact code from the tutorial working if I ran them par(mfrow = c(1, 2))
+# SFT index as a function of different powers
+
+par(mfrow = c(1,2))
+
+plot(sft$fitIndices[, 1], -sign(sft$fitIndices[, 3]) * sft$fitIndices[, 2],
+xlab = "soft threshold power",
+ylab = "SFT, signed R^2",
+type = "n",
+main = paste("Scale Independence")
+)
+text(sft$fitIndices[, 1], -sign(sft$fitIndices[, 3]) * sft$fitIndices[, 2], labels = powers, col = abline(h = 0.9, col = "red"))
+
+     
+# Mean connectivity as a function of different powers
+plot(sft$fitIndices[, 1], sft$fitIndices[, 5],
+xlab = "Soft Threshold (power)",
+ylab = "Mean Connectivity",
+type = "n",
+main = paste("Mean Connectivity")
+)
+text(sft$fitIndices[, 1], sft$fitIndices[, 5], labels = powers, col = "red")
+```
+
+beta = 6
+
+## *Module detection via dynamic tree cutting*
+
+You can also the minModuleSize (minimum number of OTUs permitted per module).
+Default = 30, but I increased to 50 to reduce the number of modules.
+
+#Here is where I think the organic tree cutting may come in handy. This is the stuff i learned in 2017 analysis 
+```{r}
+
+mergingThresh = 0.15
+
+net = blockwiseModules(OTU_norm, corType = "pearson",
+maxBlockSize = 5000,
+networkType = "unsigned",
+power = 3,
+minModuleSize = 3,
+mergeCutHeight = mergingThresh,
+numericLabels = TRUE,
+saveTOMs = TRUE,
+pamRespectsDendro = FALSE,
+saveTOMFileBase = "OTU_NIL_2018_Genetic")
+moduleLabelsAutomatic = net$colors
+
+# Convert labels to colors for plotting
+moduleColorsAutomatic = labels2colors(moduleLabelsAutomatic)
+
+# A data frame with module eigengenes can be obtained as follows
+MEsAutomatic = net$MEs
+blocknumber = 1
+datColors = data.frame(moduleColorsAutomatic)[net$blockGenes[[blocknumber]],]
+
+# Plot the dendrogram and the module colors underneath
+plotDendroAndColors(net$dendrograms[[blocknumber]],
+colors = datColors,
+groupLabels = c("Modules"),
+dendroLabels = FALSE,
+hang = 0.03, addGuide = TRUE,
+guideHang = 0.05)
+
+
+```
+
+
+## *Relating modules to environmental data*
+
+```{r}
+# Choose a module assignment
+#This line of code connects the two segments 
+moduleColors = moduleColorsAutomatic
+
+# Define numbers of genes and samples
+nOTU = ncol(OTU_norm)
+10
+nSamples = nrow(OTU_norm)
+
+# Recalculate MEs with color labels
+MEs0 = moduleEigengenes(OTU_norm, moduleColors)$eigengenes
+MEsOTU = orderMEs(MEs0)
+modEnvCor = cor(MEsOTU, env1, use = "p")
+
+## Warning in storage.mode(y) <- "double": NAs introduced by coercion
+modEnvP = corPvalueStudent(modEnvCor, nSamples)
+
+# Since we have a moderately large number of modules and traits, a suitable graphical representation will 
+
+textMatrix = paste(signif(modEnvCor, 2), "\n(", signif(modEnvP, 1), ")", sep = "")
+dim(textMatrix) = dim(modEnvCor)
+par(mar = c(6, 8.5, 3, 3))
+
+# Display the correlation values within a heatmap plot
+labeledHeatmap(Matrix = modEnvCor,
+xLabels = names(env1),
+yLabels = names(MEsOTU),
+ySymbols = names(MEsOTU),
+colorLabels = FALSE,
+colors = blueWhiteRed(50),
+textMatrix = textMatrix,
+setStdMargins = FALSE,
+cex.text = 0.5, zlim = c(-1, 1),
+main = paste("Module-environmental relationships"))
+
+# calculate the module membership values (aka. module eigengene based connectivity kME):
+datKME = signedKME(OTU_norm, MEsOTU)
+
+dissimME=(1-t(cor(datKME, method="p")))/2
+hclustdatME=hclust(as.dist(dissimME), method="average" )
+# Plot the eigengene dendrogram
+par(mfrow=c(1,1))
+plot(hclustdatME, main="Clustering tree based of the module eigengenes")
+```
+```
+
+## *Exporting results*
+
+```{r}
+
+# Check taxa annotation file
+dim(taxonomy)
+# [1] 5069    7
+
+# Match taxa IDs in the data set to those of the annotation file 
+head(rownames(taxonomy))
+# [1] "OTU_1" "OTU_2" "OTU_3" "OTU_4" "OTU_5" "OTU_6"
+tail(rownames(taxonomy))
+# [1] "OTU_5256" "OTU_5257" "OTU_5258" "OTU_5259" "OTU_5260" "OTU_5261"
+
+OTU_norm1 <- as.data.frame(OTU_norm)
+dim(OTU_norm)
+head(names(OTU_norm1))
+# [1] "OTU_1" "OTU_2" "OTU_3" "OTU_4" "OTU_5" "OTU_6"
+tail(names(OTU_norm1))
+# [1] "OTU_5117" "OTU_5130" "OTU_5135" "OTU_5138" "OTU_5172" "OTU_5175"
+
+taxa_annot <- as.matrix(taxonomy)
+
+microbes <- names(OTU_norm1) 
+
+annotation <- row.names(taxa_annot)
+
+OTU2annot <- match(microbes, annotation)
+
+# data frame with module significances (cor with the traits) 
+OTU_env <- data.frame(cor(OTU_norm1, env1, use = "p")) 
+
+names(OTU_env) <- paste("cor", names(OTU_env), sep = ".")
+
+datOutput <- data.frame(ProbeID = names(OTU_norm1), taxonomy[OTU2annot, ], 
+                       moduleColors, datKME, OTU_env)
+
+# save the results in a comma delimited file 
+write.table(datOutput, "NIL2021_WGCNA_results._Geno_update_3.csv", row.names = F, sep = ",")
+
+# also export table containing module-trait correlations with p-values
+
+modEnvCor <- textMatrix
+colnames(modEnvCor) <- names(env1)
+
+modEnvCor_df <- data.frame(Module = names(MEsOTU), modEnvCor)
+
+write.table(modEnvCor, "NIL2021_WGCNA_env_cor_Geno_update_3.csv", sep = ",")
+
+#produce df with cor and p vals for mod-trait correlations
+modEnvCor <- data.frame(Module = names(MEsOTU), modEnvCor)
+
+modEnvCor_lab <- modEnvCor
+colnames(modEnvCor_lab) <- paste("cor", colnames(modEnvCor), sep = "_")
+
+modEnvP_lab <- modEnvP
+colnames(modEnvP_lab) <- paste("p", colnames(modEnvP_lab), sep = "_")
+
+
+mod_cor_p <- data.frame(Module = names(MEsOTU), modEnvCor_lab, modEnvP_lab)
+
+write.table(mod_cor_p, "NIL2021_WGCNA_mod_cor_p_Geno_update_3.csv", sep = ",")
+
+# select modules
+modules <- unique(datColors)
+# Select module probes
+probes <- names(OTU_norm1)
+inModule <- is.finite(match(moduleColors,modules))
+modProbes <- probes[inModule]
+match1 <- match(modProbes, taxa_annot)
+
+modOTUs <- taxa_annot[match1]
+
+TOM <- TOMsimilarityFromExpr(OTU_norm1, power=7)
+
+modTOM <- TOM[inModule, inModule]
+
+dimnames(modTOM) = list(modProbes, modProbes)
+
+# Export the network into edge and node list files for Cytoscape
+
+cyt <- exportNetworkToCytoscape(modTOM,
+edgeFile=paste("CytoEdge", ".txt",sep=""),
+nodeFile=paste("CytoNode", ".txt",sep=""),
+weighted = TRUE,
+threshold = 0.02,
+nodeNames=modProbes,
+altNodeNames = modOTUs,
+nodeAttr = moduleColors[inModule]
+)
+
+```
+
+This "great table" code makes a table with ONLY significant module-environmantal trail correlations, with p-values.
+
+```{r greattable}
+
+#first identify correlations with significant p-vals
+#obtain locations of cells where p<0.05
+
+sig_env <- modEnvP < 0.10
+
+#trait and module names as vectors
+envtraits <- c(colnames(sig_env))
+list(envtraits)
+modules <-c (rownames(sig_env))
+
+#modules names repeat
+modEnvCor = cor(MEsOTU, env1, use = "p")
+modules.f <- rep(modules, ncol(modEnvCor))
+modules.f
+
+#values as matrix
+cor.v <- as.vector(modEnvCor)
+pval.v <- as.vector(modEnvP)
+cor.m <- matrix(data=(cor.v),byrow=F)
+pval.m <- matrix(data=(pval.v),byrow=F)
+TF.v <- as.vector(sig_env)
+TF.m <- matrix(data=(TF.v),byrow=F)
+
+#labels as matrix
+env.m <- matrix(data=rep(envtraits, each=nrow(modEnvCor)), byrow=F)
+mod.m <- matrix(data=modules.f, byrow=F)
+
+#make single matrix (good table)
+goodtable <- cbind(mod.m, env.m, cor.m, pval.m, TF.m)
+
+# mod.m = 272
+# env.m = 272
+# cor.m = 289 (remove first column, which contains module names) then = 272
+# pval.m = 272
+# TF.m = 272
+
+#Name columns
+goodtable.cnames <- c("module","trait","cor","pval","sig")
+colnames(goodtable) <- goodtable.cnames
+goodtable <- as.data.frame(goodtable)
+
+#Remove sig=False rows
+greattable <- filter(goodtable, sig == "TRUE")
+ 
+greattable <- greattable[order(greattable$module), ]
+greattable
+
+#export
+write.table(greattable, "NIL2021_sig_greattable_Geno_update_3.csv", row.names = F, sep = ",")
+```
+
+## *Method from online cluster approch, uses dynamic clustering*
+```{r}
+
+##Below is a method that uses a different type of threshold for merging. Via dynamic tree cutting
+#Where elle's method used a stringent threshold for clustering that was not dynamic 
+#The dynamic clustering seems to find more modules and almost puts everying in a module, perhaps the threshold is too weak
+
+####Code take from https://wikis.utexas.edu/display/bioiteam/Clustering+using+WGCNA
+softPower=8
+adjacency = adjacency(OTU_norm, power = softPower, type = "signed") #specify network type
+head(adjacency)
+ 
+# Construct Networks- USE A SUPERCOMPUTER IRL -----------------------------
+#translate the adjacency into topological overlap matrix and calculate the corresponding dissimilarity:
+TOM = TOMsimilarity(adjacency, TOMType="signed") # specify network type
+dissTOM = 1-TOM
+ 
+# Generate Modules --------------------------------------------------------
+ library(flashClust)
+ 
+# Generate a clustered gene tree
+geneTree = flashClust(as.dist(dissTOM), method="average")
+plot(geneTree, xlab="", sub="", main= "Gene Clustering on TOM-based dissimilarity", labels= FALSE, hang=0.04)
+#This sets the minimum number of genes to cluster into a module
+minModuleSize = 10
+dynamicMods = cutreeDynamic(dendro= geneTree, distM= dissTOM, deepSplit=2, pamRespectsDendro= FALSE, minClusterSize = minModuleSize)
+dynamicColors= labels2colors(dynamicMods)
+MEList= moduleEigengenes(OTU_norm, colors= dynamicColors,softPower = softPower)
+MEs= MEList$eigengenes
+MEDiss= 1-cor(MEs)
+METree= flashClust(as.dist(MEDiss), method= "average")
+save(dynamicMods, MEList, MEs, MEDiss, METree, file= "Network_allSamples_signed_RLDfiltered.RData")
+ 
+
+
+#plots tree showing how the eigengenes cluster together
+#INCLUE THE NEXT LINE TO SAVE TO FILE
+#pdf(file="clusterwithoutmodulecolors.pdf")
+plot(METree, main= "Clustering of module eigengenes", xlab= "", sub= "")
+#set a threhold for merging modules. In this example we are not merging so MEDissThres=0.0
+MEDissThres = 0.0
+merge = mergeCloseModules(OTU_norm, dynamicColors, cutHeight= MEDissThres, verbose =3)
+mergedColors = merge$colors
+mergedMEs = merge$newMEs
+#INCLUE THE NEXT LINE TO SAVE TO FILE
+#dev.off()
+
+
+
+#plot dendrogram with module colors below it
+#INCLUE THE NEXT LINE TO SAVE TO FILE
+#pdf(file="cluster.pdf")
+plotDendroAndColors(geneTree, cbind(dynamicColors, mergedColors), c("Dynamic Tree Cut", "Merged dynamic"), dendroLabels= FALSE, hang=0.03, addGuide= TRUE, guideHang=0.05)
+moduleColors = mergedColors
+colorOrder = c("grey", standardColors(50))
+moduleLabels = match(moduleColors, colorOrder)-1
+MEs = mergedMEs
+#INCLUE THE NEXT LINE TO SAVE TO FILE
+#dev.off()
+
+```
+
+
+
+```{r}
+# Choose a module assignment
+##This line of code connects the two segments 
+#moduleColors = moduleColorsAutomatic
+
+# Define numbers of genes and samples
+nOTU = ncol(OTU_norm)
+10
+nSamples = nrow(OTU_norm)
+
+# Recalculate MEs with color labels
+MEs0 = moduleEigengenes(OTU_norm, moduleColors)$eigengenes
+MEsOTU = orderMEs(MEs0)
+modEnvCor = cor(MEsOTU, env1, use = "p")
+
+## Warning in storage.mode(y) <- "double": NAs introduced by coercion
+modEnvP = corPvalueStudent(modEnvCor, nSamples)
+
+# Since we have a moderately large number of modules and traits, a suitable graphical representation will 
+
+textMatrix = paste(signif(modEnvCor, 2), "\n(", signif(modEnvP, 1), ")", sep = "")
+dim(textMatrix) = dim(modEnvCor)
+par(mar = c(6, 8.5, 3, 3))
+
+# Display the correlation values within a heatmap plot
+labeledHeatmap(Matrix = modEnvCor,
+xLabels = names(env1),
+yLabels = names(MEsOTU),
+ySymbols = names(MEsOTU),
+colorLabels = FALSE,
+colors = blueWhiteRed(50),
+textMatrix = textMatrix,
+setStdMargins = FALSE,
+cex.text = 0.5, zlim = c(-1, 1),
+main = paste("Module-environmental relationships"))
+
+# calculate the module membership values (aka. module eigengene based connectivity kME):
+datKME = signedKME(OTU_norm, MEsOTU)
+
+dissimME=(1-t(cor(datKME, method="p")))/2
+hclustdatME=hclust(as.dist(dissimME), method="average" )
+# Plot the eigengene dendrogram
+par(mfrow=c(1,1))
+plot(hclustdatME, main="Clustering tree based of the module eigengenes")
+```
+
+
+
+## *Exporting results*
+
+```{r}
+
+# Check taxa annotation file
+dim(taxonomy)
+# [1] 5069    7
+
+# Match taxa IDs in the data set to those of the annotation file 
+head(rownames(taxonomy))
+# [1] "OTU_1" "OTU_2" "OTU_3" "OTU_4" "OTU_5" "OTU_6"
+tail(rownames(taxonomy))
+# [1] "OTU_5256" "OTU_5257" "OTU_5258" "OTU_5259" "OTU_5260" "OTU_5261"
+
+OTU_norm1 <- as.data.frame(OTU_norm)
+dim(OTU_norm)
+head(names(OTU_norm1))
+# [1] "OTU_1" "OTU_2" "OTU_3" "OTU_4" "OTU_5" "OTU_6"
+tail(names(OTU_norm1))
+# [1] "OTU_5117" "OTU_5130" "OTU_5135" "OTU_5138" "OTU_5172" "OTU_5175"
+
+taxa_annot <- as.matrix(taxonomy)
+
+microbes <- names(OTU_norm1) 
+
+annotation <- row.names(taxa_annot)
+
+OTU2annot <- match(microbes, annotation)
+
+# data frame with module significances (cor with the traits) 
+OTU_env <- data.frame(cor(OTU_norm1, env1, use = "p")) 
+
+names(OTU_env) <- paste("cor", names(OTU_env), sep = ".")
+
+datOutput <- data.frame(ProbeID = names(OTU_norm1), taxonomy[OTU2annot, ], 
+                       moduleColors, datKME, OTU_env)
+
+# save the results in a comma delimited file 
+write.table(datOutput, "NIL2021_WGCNA_results._Geno_update_Test.csv", row.names = F, sep = ",")
+
+# also export table containing module-trait correlations with p-values
+
+modEnvCor <- textMatrix
+colnames(modEnvCor) <- names(env1)
+
+modEnvCor_df <- data.frame(Module = names(MEsOTU), modEnvCor)
+
+write.table(modEnvCor, "NIL2021_WGCNA_env_cor_Geno_update_Test.csv", sep = ",")
+
+#produce df with cor and p vals for mod-trait correlations
+modEnvCor <- data.frame(Module = names(MEsOTU), modEnvCor)
+
+modEnvCor_lab <- modEnvCor
+colnames(modEnvCor_lab) <- paste("cor", colnames(modEnvCor), sep = "_")
+
+modEnvP_lab <- modEnvP
+colnames(modEnvP_lab) <- paste("p", colnames(modEnvP_lab), sep = "_")
+
+
+mod_cor_p <- data.frame(Module = names(MEsOTU), modEnvCor_lab, modEnvP_lab)
+
+write.table(mod_cor_p, "NIL2021_WGCNA_mod_cor_p_Geno_update_Test.csv", sep = ",")
+
+# select modules
+modules <- unique(datColors)
+# Select module probes
+probes <- names(OTU_norm1)
+inModule <- is.finite(match(moduleColors,modules))
+modProbes <- probes[inModule]
+match1 <- match(modProbes, taxa_annot)
+
+modOTUs <- taxa_annot[match1]
+
+TOM <- TOMsimilarityFromExpr(OTU_norm1, power=7)
+
+modTOM <- TOM[inModule, inModule]
+
+dimnames(modTOM) = list(modProbes, modProbes)
+
+# Export the network into edge and node list files for Cytoscape
+
+cyt <- exportNetworkToCytoscape(modTOM,
+edgeFile=paste("CytoEdge2", ".txt",sep=""),
+nodeFile=paste("CytoNode2", ".txt",sep=""),
+weighted = TRUE,
+threshold = 0.02,
+nodeNames=modProbes,
+altNodeNames = modOTUs,
+nodeAttr = moduleColors[inModule]
+)
+
+
+```
+
+This "great table" code makes a table with ONLY significant module-environmantal trail correlations, with p-values.
+
+```{r greattable}
+
+#first identify correlations with significant p-vals
+#obtain locations of cells where p<0.05
+
+sig_env <- modEnvP < 0.10
+
+#trait and module names as vectors
+envtraits <- c(colnames(sig_env))
+list(envtraits)
+modules <-c (rownames(sig_env))
+
+#modules names repeat
+modEnvCor = cor(MEsOTU, env1, use = "p")
+modules.f <- rep(modules, ncol(modEnvCor))
+modules.f
+
+#values as matrix
+cor.v <- as.vector(modEnvCor)
+pval.v <- as.vector(modEnvP)
+cor.m <- matrix(data=(cor.v),byrow=F)
+pval.m <- matrix(data=(pval.v),byrow=F)
+TF.v <- as.vector(sig_env)
+TF.m <- matrix(data=(TF.v),byrow=F)
+
+#labels as matrix
+env.m <- matrix(data=rep(envtraits, each=nrow(modEnvCor)), byrow=F)
+mod.m <- matrix(data=modules.f, byrow=F)
+
+#make single matrix (good table)
+goodtable <- cbind(mod.m, env.m, cor.m, pval.m, TF.m)
+
+# mod.m = 272
+# env.m = 272
+# cor.m = 289 (remove first column, which contains module names) then = 272
+# pval.m = 272
+# TF.m = 272
+
+#Name columns
+goodtable.cnames <- c("module","trait","cor","pval","sig")
+colnames(goodtable) <- goodtable.cnames
+goodtable <- as.data.frame(goodtable)
+
+#Remove sig=False rows
+greattable <- filter(goodtable, sig == "TRUE")
+ 
+greattable <- greattable[order(greattable$module), ]
+greattable
+
+#export
+write.table(greattable, "NIL2021_sig_greattable_Geno_update_Test.csv", row.names = F, sep = ",")
+```
+
